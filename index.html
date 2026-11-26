@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartComposition - Épreuves & Classement</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="manifest.json">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body>
+
+    <div class="app-shell">
+        <header class="app-header">
+            <h1 id="app-title" onclick="window.app.goHome()">📝 SmartComposition</h1>
+            <div class="header-actions">
+                <button id="theme-toggle-btn" type="button" onclick="window.app.toggleDarkThemeQuick()" class="btn-icon-header" title="Mode sombre / clair">🌙</button>
+                <button id="toggle-mode-btn" type="button" class="btn-toggle" onclick="window.app.toggleAdminMode()">Espace Éditeur</button>
+            </div>
+        </header>
+
+        <!-- ================= ESPACE ÉTUDIANT ================= -->
+        <main id="student-zone" class="view-zone active">
+            <section id="view-dashboard" class="app-view active">
+                <div class="section-top-bar">
+                    <div class="dashboard-heading-group">
+                        <h2>Sujets disponibles</h2>
+                        <p id="sync-status-msg" class="sync-status-text">Synchronisation automatique...</p>
+                    </div>
+                    <button type="button" onclick="window.app.refreshSharedCoursesForStudent(true)" class="btn-sync-pill">🔄 Actualiser</button>
+                </div>
+
+                <div id="student-toast-banner" class="status-toast hidden" role="status" aria-live="polite"></div>
+                <div id="resume-session-banner" class="resume-banner hidden">
+                    <div class="resume-banner-text">
+                        <strong id="resume-session-title">Composition en pause</strong>
+                        <span id="resume-session-meta" class="text-muted"></span>
+                    </div>
+                    <div class="resume-banner-actions">
+                        <button type="button" class="btn-resume-continue" onclick="window.app.resumeSavedQuiz()">▶️ Reprendre</button>
+                        <button type="button" class="btn-resume-discard" onclick="window.app.discardSavedQuiz()">✕</button>
+                    </div>
+                </div>
+                <div class="filter-bar">
+                    <input type="text" id="filter-search-input" placeholder="Rechercher..." oninput="window.app.renderDashboard()">
+                    <select id="filter-topic-select" onchange="window.app.renderDashboard()">
+                        <option value="">Toutes les matières</option>
+                    </select>
+                </div>
+
+                <div id="courses-list" class="grid-courses"></div>
+            </section>
+
+            <!-- ÉCRAN PENDANT LA COMPOSITION -->
+            <section id="view-quiz" class="app-view">
+                <div class="quiz-clean-top">
+                    <div class="candidate-meta">
+                        <div id="quiz-participant-name" class="clean-candidate">Candidat</div>
+                        <div id="quiz-subject-subtitle" class="clean-sub">Composition en cours</div>
+                    </div>
+                    <div id="quiz-elapsed-timer" class="clean-timer">00:00</div>
+                </div>
+
+                <div class="clean-progress-meta">
+                    <span id="quiz-question-number">Question 1 / 1</span>
+                    <span id="quiz-current-topic" class="clean-topic">Général</span>
+                    <span>⏱️ <span id="question-timer-val">45s</span></span>
+                </div>
+
+                <div class="clean-progress-track">
+                    <div id="quiz-progress-line" style="width: 0%;"></div>
+                </div>
+
+                <div class="quiz-question-card">
+                    <h2 id="quiz-question-text" class="question-text">Chargement...</h2>
+                    <div id="quiz-options-container" class="options-list"></div>
+                </div>
+
+                <button id="btn-validate-quiz" type="button" class="btn-validate-submit" onclick="window.app.validateAnswer()">Valider ➡️</button>
+            </section>
+
+            <!-- ÉCRAN APRÈS LA COMPOSITION -->
+            <section id="view-results" class="app-view">
+                <div class="results-hero-card">
+                    <div class="results-hero-top">
+                        <span class="results-badge">RÉSULTAT</span>
+                        <h2 id="res-student-name" class="results-candidate-name">Candidat</h2>
+                    </div>
+
+                    <div class="results-score-row">
+                        <div class="results-score-circle">
+                            <span id="res-grade">0.0</span><small>/20</small>
+                        </div>
+                        <div class="results-meta-col">
+                            <p id="res-summary-counts" class="results-counts"></p>
+                            <p id="res-encouragement" class="clean-note-line"></p>
+                        </div>
+                    </div>
+
+                    <div class="results-actions-grid">
+                        <button id="btn-retry-wrong" type="button" class="btn-retry-wrong hidden" onclick="window.app.retryWrongQuestions()">
+                            🔁 Reprendre les erreurs (<span id="wrong-count-btn">0</span>)
+                        </button>
+                        <div class="results-secondary-actions">
+                            <button type="button" class="btn-download-subject" onclick="window.app.downloadSubject()">
+                                📥 PDF
+                            </button>
+                            <button id="btn-toggle-correction" type="button" class="btn-correction-toggle" onclick="window.app.toggleCorrectionDetails()" aria-expanded="false">
+                                📋 <span id="correction-toggle-label">Correction détaillée</span>
+                            </button>
+                            <button type="button" class="btn-back-home" onclick="window.app.goHome()">
+                                🏠 Accueil
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="correction-drawer" class="results-section-card hidden">
+                    <div class="section-row-between">
+                        <h3 class="clean-section-title" style="margin:0;">📋 Correction détaillée</h3>
+                        <button type="button" class="btn-back-to-lb" onclick="window.app.toggleCorrectionDetails()">🏆 Classement</button>
+                    </div>
+                    <div id="topic-breakdown-container" class="topic-list topic-list-active"></div>
+                    <p id="spaced-review-box" class="spaced-review-note spaced-review-active hidden"></p>
+                    <div id="correction-grid-container" class="correction-list correction-list-active"></div>
+                </div>
+
+                <div id="leaderboard-card" class="results-section-card leaderboard-active leaderboard-panel">
+                    <div class="section-row-between">
+                        <h3 class="clean-section-title" style="margin:0;">🏆 Classement</h3>
+                        <button type="button" onclick="window.app.loadLeaderboard(window.app.quiz.subjectId)" class="btn-mini-refresh" title="Actualiser le classement">🔄</button>
+                    </div>
+                    <div id="leaderboard-container" class="leaderboard-list leaderboard-list-active leaderboard-scroll">
+                        <p class="text-muted">Chargement du classement...</p>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- ================= ESPACE ÉDITEUR ================= -->
+        <aside id="editor-zone" class="view-zone">
+            <section id="view-editor-dashboard" class="app-view active">
+                <div class="section-top-bar">
+                    <h2>Espace Éditeur</h2>
+                    <button type="button" onclick="window.app.syncAllToCloud()" class="btn-sync-pill">☁️ Synchroniser</button>
+                </div>
+
+                <div id="editor-toast-banner" class="status-toast hidden" role="status" aria-live="polite"></div>
+                <div class="backup-data-card">
+                    <h3>📥 Envoyer / Comprendre un sujet</h3>
+                    <p class="text-muted">Colle un sujet (texte ou JSON) ou importe un fichier.</p>
+
+                    <input type="text" id="smart-subject-title" class="editor-input" placeholder="Titre du sujet (ex. : Épidémiologie)">
+                    <input type="text" id="smart-subject-topic" class="editor-input" placeholder="Matière / Module (ex. : Épidémiologie)">
+                    <textarea id="smart-subject-synthesis" class="editor-textarea-sm" placeholder="Fiche de synthèse rapide du sujet..."></textarea>
+
+                    <textarea id="smart-subject-raw" class="smart-paste-area" placeholder="Colle ici ton sujet ou ton JSON...&#10;&#10;Exemple :&#10;[Notion : Prévention] 1. Quel organe filtre le sang issu du tube digestif ?&#10;A) Le foie&#10;B) Le rein&#10;Réponse : A"></textarea>
+
+                    <div id="smart-preview-box" class="preview-box hidden"></div>
+
+                    <div class="backup-actions-grid">
+                        <button type="button" class="btn-backup-io" onclick="window.app.previewParsedSubject()">🔍 Aperçu</button>
+                        <button type="button" class="btn-admin-primary" onclick="window.app.publishSmartSubject()">🚀 Publier</button>
+                    </div>
+
+                    <div class="backup-actions-grid">
+                        <button type="button" class="btn-backup-io" onclick="document.getElementById('import-subject-file').click()">📂 Fichier (.json/.txt)</button>
+                        <button type="button" class="btn-backup-io" onclick="window.app.openCourseCreator()">✍️ Manuel</button>
+                    </div>
+                    <input type="file" id="import-subject-file" accept=".json,.txt,application/json,text/plain" class="hidden" onchange="window.app.importAndPublishSubject(event)">
+                </div>
+
+                <div class="section-row-between">
+                    <h3 class="editor-sub-heading">Sujets publiés (<span id="editor-count">0</span>)</h3>
+                </div>
+                <div id="editor-courses-list" class="list-editor-management"></div>
+            </section>
+
+            <section id="view-course-creator" class="app-view">
+                <div class="editor-nav-header">
+                    <button type="button" class="btn-back" onclick="window.app.switchView('editor-dashboard')">⬅️ Retour</button>
+                    <h2>Création manuelle</h2>
+                </div>
+
+                <form id="course-form" onsubmit="event.preventDefault();">
+                    <div class="form-element">
+                        <label for="input-course-title">Titre du sujet :</label>
+                        <input type="text" id="input-course-title" placeholder="Ex. : Pédiatrie - Évaluation" required>
+                        <label for="input-course-topic">Matière / Module :</label>
+                        <input type="text" id="input-course-topic" placeholder="Ex. : Pédiatrie">
+                        <label for="input-course-synthesis">Fiche de synthèse rapide du sujet :</label>
+                        <textarea id="input-course-synthesis" placeholder="Règles ou points clés à retenir..." style="height:68px;"></textarea>
+                    </div>
+
+                    <div id="chapters-dynamic-stack"></div>
+
+                    <div class="form-actions-builder">
+                        <button type="button" class="btn-builder-secondary" onclick="window.app.addQuestionField()">➕ Ajouter une question</button>
+                        <button type="button" id="btn-save-publish" class="btn-builder-save" onclick="window.app.saveCreatedSubject()">🚀 Publier le sujet</button>
+                    </div>
+                </form>
+            </section>
+        </aside>
+    </div>
+
+    <!-- Modale Nom Étudiant -->
+    <div id="student-name-modal" class="lock-overlay hidden">
+        <div class="lock-card">
+            <div class="lock-icon">✍️</div>
+            <h2>Nom du candidat</h2>
+            <p>Entre ton nom complet pour commencer à composer :</p>
+            <input id="student-name-input" type="text" placeholder="Votre nom" onkeydown="if(event.key==='Enter') window.app.confirmStudentNameAndStart(); else if(event.key==='Escape') window.app.closeStudentNameModal();">
+            <button type="button" class="lock-btn-validate" onclick="window.app.confirmStudentNameAndStart()">Commencer la composition</button>
+            <button type="button" class="lock-btn-cancel" onclick="window.app.closeStudentNameModal()">Annuler</button>
+            <p id="student-name-error" class="lock-status hidden"></p>
+        </div>
+    </div>
+
+    <!-- Modale Code Éditeur -->
+    <div id="editor-code-modal" class="lock-overlay hidden">
+        <div class="lock-card">
+            <div class="lock-icon">🔑</div>
+            <h2>Espace Éditeur</h2>
+            <p>Entre le code éditeur :</p>
+            <input id="editor-code-input" type="password" placeholder="Code éditeur" onkeydown="if(event.key==='Enter') window.lock.tryEditorUnlock(); else if(event.key==='Escape') window.lock.cancelEditorPrompt();">
+            <button type="button" class="lock-btn-validate" onclick="window.lock.tryEditorUnlock()">Valider</button>
+            <button type="button" class="lock-btn-cancel" onclick="window.lock.cancelEditorPrompt()">Annuler</button>
+            <p id="editor-code-status" class="lock-status hidden"></p>
+        </div>
+    </div>
+
+    <script src="student.js"></script>
+    <script src="editor.js"></script>
+    <script src="lock.js"></script>
+</body>
+</html>
